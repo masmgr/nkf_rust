@@ -59,8 +59,8 @@ static HW_TO_FW_KATAKANA: &[(char, char)] = &[
     ('\u{FF9D}', '\u{30F3}'), // ﾝ -> ン
 ];
 
-const DAKUTEN: char = '\u{FF9E}';       // ﾞ (half-width dakuten)
-const HANDAKUTEN: char = '\u{FF9F}';    // ﾟ (half-width handakuten)
+const DAKUTEN: char = '\u{FF9E}'; // ﾞ (half-width dakuten)
+const HANDAKUTEN: char = '\u{FF9F}'; // ﾟ (half-width handakuten)
 
 /// Characters that can take dakuten (voiced mark).
 /// Maps base full-width -> dakuten full-width.
@@ -105,6 +105,7 @@ fn apply_handakuten(c: char) -> Option<char> {
 
 /// Convert half-width katakana to full-width katakana.
 /// Handles dakuten and handakuten combinations.
+#[must_use]
 pub fn hw_to_fw_katakana(input: &str) -> String {
     let chars: Vec<char> = input.chars().collect();
     let mut result = String::with_capacity(input.len());
@@ -124,12 +125,12 @@ pub fn hw_to_fw_katakana(input: &str) -> String {
                         i += 2;
                         continue;
                     }
-                } else if next == HANDAKUTEN {
-                    if let Some(semi_voiced) = apply_handakuten(fw) {
-                        result.push(semi_voiced);
-                        i += 2;
-                        continue;
-                    }
+                } else if next == HANDAKUTEN
+                    && let Some(semi_voiced) = apply_handakuten(fw)
+                {
+                    result.push(semi_voiced);
+                    i += 2;
+                    continue;
                 }
             }
             result.push(fw);
@@ -159,6 +160,7 @@ fn hw_kana_to_fw(c: char) -> Option<char> {
 }
 
 /// Convert full-width katakana to half-width katakana.
+#[must_use]
 pub fn fw_to_hw_katakana(input: &str) -> String {
     let mut result = String::with_capacity(input.len());
 
@@ -221,6 +223,7 @@ fn fw_kana_to_hw(c: char) -> Option<(char, Option<char>)> {
 }
 
 /// Convert full-width ASCII/digits (U+FF01-U+FF5E) to half-width ASCII (U+0021-U+007E).
+#[must_use]
 pub fn fw_to_hw_ascii(input: &str) -> String {
     input
         .chars()
@@ -253,6 +256,7 @@ pub enum ZenMode {
     KatakanaToHw,
 }
 
+#[must_use]
 pub fn apply_zen_conversion(input: &str, mode: ZenMode) -> String {
     match mode {
         ZenMode::AlphaToAscii | ZenMode::SpaceToOne => fw_to_hw_ascii(input),

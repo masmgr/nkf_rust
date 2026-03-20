@@ -24,9 +24,8 @@ pub fn decode_to_utf8(input: &[u8], from: EncodingType) -> Result<String, NkfErr
 
     match from {
         EncodingType::Ascii | EncodingType::Utf8 | EncodingType::Utf8Bom => {
-            String::from_utf8(input.to_vec()).map_err(|e| {
-                NkfError::Conversion(format!("Invalid UTF-8: {}", e))
-            })
+            String::from_utf8(input.to_vec())
+                .map_err(|e| NkfError::Conversion(format!("Invalid UTF-8: {e}")))
         }
         _ => {
             let encoding = from.to_encoding_rs();

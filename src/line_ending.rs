@@ -7,6 +7,7 @@ pub enum LineEnding {
 
 /// Convert line endings in a UTF-8 string.
 /// First normalizes all line endings to LF, then converts to the target.
+#[must_use]
 pub fn convert_line_endings(input: &str, target: LineEnding) -> String {
     // Normalize: replace CRLF first, then standalone CR -> LF
     let normalized = input.replace("\r\n", "\n").replace('\r', "\n");
@@ -24,12 +25,18 @@ mod tests {
 
     #[test]
     fn test_lf_to_crlf() {
-        assert_eq!(convert_line_endings("a\nb\nc", LineEnding::CrLf), "a\r\nb\r\nc");
+        assert_eq!(
+            convert_line_endings("a\nb\nc", LineEnding::CrLf),
+            "a\r\nb\r\nc"
+        );
     }
 
     #[test]
     fn test_crlf_to_lf() {
-        assert_eq!(convert_line_endings("a\r\nb\r\nc", LineEnding::Lf), "a\nb\nc");
+        assert_eq!(
+            convert_line_endings("a\r\nb\r\nc", LineEnding::Lf),
+            "a\nb\nc"
+        );
     }
 
     #[test]
@@ -44,7 +51,10 @@ mod tests {
 
     #[test]
     fn test_mixed_to_lf() {
-        assert_eq!(convert_line_endings("a\r\nb\rc\nd", LineEnding::Lf), "a\nb\nc\nd");
+        assert_eq!(
+            convert_line_endings("a\r\nb\rc\nd", LineEnding::Lf),
+            "a\nb\nc\nd"
+        );
     }
 
     #[test]

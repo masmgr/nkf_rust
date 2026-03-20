@@ -8,8 +8,8 @@ pub mod line_ending;
 pub mod mime;
 pub mod pipeline;
 
-pub use encoding_type::EncodingType;
-pub use detect::{detect, DetectionResult};
 pub use convert::convert;
+pub use detect::{DetectionResult, detect};
+pub use encoding_type::EncodingType;
 pub use error::NkfError;
 pub use pipeline::{NkfOptions, process};
