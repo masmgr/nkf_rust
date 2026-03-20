@@ -1,5 +1,9 @@
 use encoding_rs::{EUC_JP, Encoding, ISO_2022_JP, SHIFT_JIS, UTF_8, UTF_16BE, UTF_16LE};
 
+pub const BOM_UTF8: &[u8] = &[0xEF, 0xBB, 0xBF];
+pub const BOM_UTF16_BE: &[u8] = &[0xFE, 0xFF];
+pub const BOM_UTF16_LE: &[u8] = &[0xFF, 0xFE];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodingType {
     Ascii,
@@ -27,21 +31,18 @@ impl EncodingType {
 
     #[must_use]
     pub fn from_encoding_rs(enc: &'static Encoding) -> Option<Self> {
-        if enc == UTF_8 {
-            Some(EncodingType::Utf8)
-        } else if enc == SHIFT_JIS {
-            Some(EncodingType::ShiftJis)
-        } else if enc == EUC_JP {
-            Some(EncodingType::EucJp)
-        } else if enc == ISO_2022_JP {
-            Some(EncodingType::Iso2022Jp)
-        } else if enc == UTF_16BE {
-            Some(EncodingType::Utf16Be)
-        } else if enc == UTF_16LE {
-            Some(EncodingType::Utf16Le)
-        } else {
-            None
-        }
+        const ENCODING_MAP: &[(&Encoding, EncodingType)] = &[
+            (UTF_8, EncodingType::Utf8),
+            (SHIFT_JIS, EncodingType::ShiftJis),
+            (EUC_JP, EncodingType::EucJp),
+            (ISO_2022_JP, EncodingType::Iso2022Jp),
+            (UTF_16BE, EncodingType::Utf16Be),
+            (UTF_16LE, EncodingType::Utf16Le),
+        ];
+        ENCODING_MAP
+            .iter()
+            .find(|(e, _)| *e == enc)
+            .map(|(_, t)| *t)
     }
 
     #[must_use]

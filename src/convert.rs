@@ -1,20 +1,10 @@
-use crate::encoding_type::EncodingType;
+use crate::encoding_type::{self, EncodingType};
 use crate::error::NkfError;
 
 /// Convert a byte buffer from one encoding to another via UTF-8 intermediate.
 pub fn convert(input: &[u8], from: EncodingType, to: EncodingType) -> Result<Vec<u8>, NkfError> {
-    // Strip BOM if present
-    let input = strip_bom(input, from);
-
-    // Same encoding: return as-is (unless BOM was stripped)
-    if from == to {
-        return Ok(input.to_vec());
-    }
-
-    // Step 1: Decode to UTF-8
+    // decode_to_utf8 handles BOM stripping internally
     let utf8 = decode_to_utf8(input, from)?;
-
-    // Step 2: Encode from UTF-8 to target
     encode_from_utf8(&utf8, to)
 }
 
@@ -29,12 +19,8 @@ pub fn decode_to_utf8(input: &[u8], from: EncodingType) -> Result<String, NkfErr
         }
         _ => {
             let encoding = from.to_encoding_rs();
-            let (result, _, had_errors) = encoding.decode(input);
-            if had_errors {
-                // encoding_rs replaces unmappable chars with U+FFFD, not a hard error
-                // We still return the result but could warn
-            }
-            let _ = had_errors;
+            // encoding_rs replaces unmappable chars with U+FFFD; we accept that behavior
+            let (result, _, _) = encoding.decode(input);
             Ok(result.into_owned())
         }
     }
@@ -45,24 +31,12 @@ pub fn encode_from_utf8(input: &str, to: EncodingType) -> Result<Vec<u8>, NkfErr
     match to {
         EncodingType::Ascii | EncodingType::Utf8 => Ok(input.as_bytes().to_vec()),
         EncodingType::Utf8Bom => {
-            let mut result = vec![0xEF, 0xBB, 0xBF];
+            let mut result = encoding_type::BOM_UTF8.to_vec();
             result.extend_from_slice(input.as_bytes());
             Ok(result)
         }
-        EncodingType::Utf16Be => {
-            let mut result = Vec::new();
-            for c in input.encode_utf16() {
-                result.extend_from_slice(&c.to_be_bytes());
-            }
-            Ok(result)
-        }
-        EncodingType::Utf16Le => {
-            let mut result = Vec::new();
-            for c in input.encode_utf16() {
-                result.extend_from_slice(&c.to_le_bytes());
-            }
-            Ok(result)
-        }
+        EncodingType::Utf16Be => Ok(encode_utf16(input, true)),
+        EncodingType::Utf16Le => Ok(encode_utf16(input, false)),
         _ => {
             let encoding = to.to_encoding_rs();
             let (result, _, had_errors) = encoding.encode(input);
@@ -77,28 +51,35 @@ pub fn encode_from_utf8(input: &str, to: EncodingType) -> Result<Vec<u8>, NkfErr
     }
 }
 
+fn encode_utf16(input: &str, big_endian: bool) -> Vec<u8> {
+    let mut result = Vec::new();
+    for c in input.encode_utf16() {
+        let bytes = if big_endian {
+            c.to_be_bytes()
+        } else {
+            c.to_le_bytes()
+        };
+        result.extend_from_slice(&bytes);
+    }
+    result
+}
+
 fn strip_bom(input: &[u8], encoding: EncodingType) -> &[u8] {
     match encoding {
         EncodingType::Utf8Bom | EncodingType::Utf8 => {
-            if input.len() >= 3 && input[0] == 0xEF && input[1] == 0xBB && input[2] == 0xBF {
-                &input[3..]
-            } else {
-                input
-            }
+            input
+                .strip_prefix(encoding_type::BOM_UTF8)
+                .unwrap_or(input)
         }
         EncodingType::Utf16Be => {
-            if input.len() >= 2 && input[0] == 0xFE && input[1] == 0xFF {
-                &input[2..]
-            } else {
-                input
-            }
+            input
+                .strip_prefix(encoding_type::BOM_UTF16_BE)
+                .unwrap_or(input)
         }
         EncodingType::Utf16Le => {
-            if input.len() >= 2 && input[0] == 0xFF && input[1] == 0xFE {
-                &input[2..]
-            } else {
-                input
-            }
+            input
+                .strip_prefix(encoding_type::BOM_UTF16_LE)
+                .unwrap_or(input)
         }
         _ => input,
     }

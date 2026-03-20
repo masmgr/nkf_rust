@@ -51,7 +51,7 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                 b'w' => {
                     // -w, -w8, -w80, -w16B, -w16L, -w16B0, -w16L0
                     let rest = &arg[j + 1..];
-                    options.output_encoding = Some(parse_utf_output(rest));
+                    options.output_encoding = Some(parse_utf_variant(rest));
                     j = bytes.len(); // consumed rest
                     continue;
                 }
@@ -62,7 +62,7 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                 b'E' => options.input_encoding = Some(EncodingType::EucJp),
                 b'W' => {
                     let rest = &arg[j + 1..];
-                    options.input_encoding = Some(parse_utf_input(rest));
+                    options.input_encoding = Some(parse_utf_variant(rest));
                     j = bytes.len();
                     continue;
                 }
@@ -94,24 +94,16 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
 
                 // MIME decode: -m[BQSN0]
                 b'm' => {
-                    let mode_char = if j + 1 < bytes.len() {
-                        j += 1;
-                        std::str::from_utf8(&bytes[j..=j]).unwrap_or("")
-                    } else {
-                        ""
-                    };
-                    options.mime_decode = Some(crate::mime::parse_mime_decode_mode(mode_char)?);
+                    let mode_char = consume_mode_char(bytes, &mut j);
+                    options.mime_decode =
+                        Some(crate::mime::parse_mime_decode_mode(&mode_char)?);
                 }
 
                 // MIME encode: -M[BQ]
                 b'M' => {
-                    let mode_char = if j + 1 < bytes.len() {
-                        j += 1;
-                        std::str::from_utf8(&bytes[j..=j]).unwrap_or("")
-                    } else {
-                        ""
-                    };
-                    options.mime_encode = Some(crate::mime::parse_mime_encode_mode(mode_char)?);
+                    let mode_char = consume_mode_char(bytes, &mut j);
+                    options.mime_encode =
+                        Some(crate::mime::parse_mime_encode_mode(&mode_char)?);
                 }
 
                 // Half-width kana preservation
@@ -149,17 +141,20 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
     Ok(options)
 }
 
-fn parse_utf_output(rest: &str) -> EncodingType {
-    match rest {
-        "16B" | "16B0" | "16" => EncodingType::Utf16Be, // default UTF-16 is BE
-        "16L" | "16L0" => EncodingType::Utf16Le,
-        _ => EncodingType::Utf8,
+fn consume_mode_char(bytes: &[u8], j: &mut usize) -> String {
+    if *j + 1 < bytes.len() {
+        *j += 1;
+        std::str::from_utf8(&bytes[*j..=*j])
+            .unwrap_or("")
+            .to_string()
+    } else {
+        String::new()
     }
 }
 
-fn parse_utf_input(rest: &str) -> EncodingType {
+fn parse_utf_variant(rest: &str) -> EncodingType {
     match rest {
-        "16B" | "16B0" | "16" => EncodingType::Utf16Be,
+        "16B" | "16B0" | "16" => EncodingType::Utf16Be, // default UTF-16 is BE
         "16L" | "16L0" => EncodingType::Utf16Le,
         _ => EncodingType::Utf8,
     }

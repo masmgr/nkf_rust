@@ -1,6 +1,6 @@
 use chardetng::EncodingDetector;
 
-use crate::encoding_type::EncodingType;
+use crate::encoding_type::{self, EncodingType};
 
 #[derive(Debug)]
 pub struct DetectionResult {
@@ -18,25 +18,23 @@ pub fn detect(input: &[u8]) -> DetectionResult {
     }
 
     // 1. BOM detection
-    if input.len() >= 3 && input[0] == 0xEF && input[1] == 0xBB && input[2] == 0xBF {
+    if input.starts_with(encoding_type::BOM_UTF8) {
         return DetectionResult {
             encoding: EncodingType::Utf8Bom,
             had_bom: true,
         };
     }
-    if input.len() >= 2 {
-        if input[0] == 0xFE && input[1] == 0xFF {
-            return DetectionResult {
-                encoding: EncodingType::Utf16Be,
-                had_bom: true,
-            };
-        }
-        if input[0] == 0xFF && input[1] == 0xFE {
-            return DetectionResult {
-                encoding: EncodingType::Utf16Le,
-                had_bom: true,
-            };
-        }
+    if input.starts_with(encoding_type::BOM_UTF16_BE) {
+        return DetectionResult {
+            encoding: EncodingType::Utf16Be,
+            had_bom: true,
+        };
+    }
+    if input.starts_with(encoding_type::BOM_UTF16_LE) {
+        return DetectionResult {
+            encoding: EncodingType::Utf16Le,
+            had_bom: true,
+        };
     }
 
     // 2. ISO-2022-JP escape sequence detection

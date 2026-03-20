@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+use std::sync::LazyLock;
+
 /// Half-width katakana to full-width katakana mapping.
 /// Maps (half-width char, optional dakuten/handakuten) -> full-width char.
 static HW_TO_FW_KATAKANA: &[(char, char)] = &[
@@ -61,6 +64,34 @@ static HW_TO_FW_KATAKANA: &[(char, char)] = &[
 
 const DAKUTEN: char = '\u{FF9E}'; // ﾞ (half-width dakuten)
 const HANDAKUTEN: char = '\u{FF9F}'; // ﾟ (half-width handakuten)
+
+/// O(1) half-width -> full-width lookup
+static HW_TO_FW_MAP: LazyLock<HashMap<char, char>> = LazyLock::new(|| {
+    HW_TO_FW_KATAKANA.iter().copied().collect()
+});
+
+/// O(1) full-width -> (half-width, optional combining mark) lookup
+/// Built from the forward table + dakuten/handakuten tables
+static FW_TO_HW_MAP: LazyLock<HashMap<char, (char, Option<char>)>> = LazyLock::new(|| {
+    let mut map = HashMap::new();
+    // Basic mappings (no combining mark)
+    for &(hw, fw) in HW_TO_FW_KATAKANA {
+        map.insert(fw, (hw, None));
+    }
+    // Dakuten variants: voiced full-width -> (base half-width, dakuten)
+    for &(hw, fw) in HW_TO_FW_KATAKANA {
+        if let Some(voiced) = apply_dakuten(fw) {
+            map.insert(voiced, (hw, Some(DAKUTEN)));
+        }
+    }
+    // Handakuten variants: semi-voiced full-width -> (base half-width, handakuten)
+    for &(hw, fw) in HW_TO_FW_KATAKANA {
+        if let Some(semi_voiced) = apply_handakuten(fw) {
+            map.insert(semi_voiced, (hw, Some(HANDAKUTEN)));
+        }
+    }
+    map
+});
 
 /// Characters that can take dakuten (voiced mark).
 /// Maps base full-width -> dakuten full-width.
@@ -151,12 +182,7 @@ pub fn hw_to_fw_katakana(input: &str) -> String {
 }
 
 fn hw_kana_to_fw(c: char) -> Option<char> {
-    for &(hw, fw) in HW_TO_FW_KATAKANA {
-        if c == hw {
-            return Some(fw);
-        }
-    }
-    None
+    HW_TO_FW_MAP.get(&c).copied()
 }
 
 /// Convert full-width katakana to half-width katakana.
@@ -181,45 +207,7 @@ pub fn fw_to_hw_katakana(input: &str) -> String {
 }
 
 fn fw_kana_to_hw(c: char) -> Option<(char, Option<char>)> {
-    // Check dakuten variants first
-    match c {
-        '\u{30AC}' => return Some(('\u{FF76}', Some(DAKUTEN))), // ガ -> ｶﾞ
-        '\u{30AE}' => return Some(('\u{FF77}', Some(DAKUTEN))), // ギ -> ｷﾞ
-        '\u{30B0}' => return Some(('\u{FF78}', Some(DAKUTEN))), // グ -> ｸﾞ
-        '\u{30B2}' => return Some(('\u{FF79}', Some(DAKUTEN))), // ゲ -> ｹﾞ
-        '\u{30B4}' => return Some(('\u{FF7A}', Some(DAKUTEN))), // ゴ -> ｺﾞ
-        '\u{30B6}' => return Some(('\u{FF7B}', Some(DAKUTEN))), // ザ -> ｻﾞ
-        '\u{30B8}' => return Some(('\u{FF7C}', Some(DAKUTEN))), // ジ -> ｼﾞ
-        '\u{30BA}' => return Some(('\u{FF7D}', Some(DAKUTEN))), // ズ -> ｽﾞ
-        '\u{30BC}' => return Some(('\u{FF7E}', Some(DAKUTEN))), // ゼ -> ｾﾞ
-        '\u{30BE}' => return Some(('\u{FF7F}', Some(DAKUTEN))), // ゾ -> ｿﾞ
-        '\u{30C0}' => return Some(('\u{FF80}', Some(DAKUTEN))), // ダ -> ﾀﾞ
-        '\u{30C2}' => return Some(('\u{FF81}', Some(DAKUTEN))), // ヂ -> ﾁﾞ
-        '\u{30C5}' => return Some(('\u{FF82}', Some(DAKUTEN))), // ヅ -> ﾂﾞ
-        '\u{30C7}' => return Some(('\u{FF83}', Some(DAKUTEN))), // デ -> ﾃﾞ
-        '\u{30C9}' => return Some(('\u{FF84}', Some(DAKUTEN))), // ド -> ﾄﾞ
-        '\u{30D0}' => return Some(('\u{FF8A}', Some(DAKUTEN))), // バ -> ﾊﾞ
-        '\u{30D3}' => return Some(('\u{FF8B}', Some(DAKUTEN))), // ビ -> ﾋﾞ
-        '\u{30D6}' => return Some(('\u{FF8C}', Some(DAKUTEN))), // ブ -> ﾌﾞ
-        '\u{30D9}' => return Some(('\u{FF8D}', Some(DAKUTEN))), // ベ -> ﾍﾞ
-        '\u{30DC}' => return Some(('\u{FF8E}', Some(DAKUTEN))), // ボ -> ﾎﾞ
-        '\u{30F4}' => return Some(('\u{FF73}', Some(DAKUTEN))), // ヴ -> ｳﾞ
-        '\u{30D1}' => return Some(('\u{FF8A}', Some(HANDAKUTEN))), // パ -> ﾊﾟ
-        '\u{30D4}' => return Some(('\u{FF8B}', Some(HANDAKUTEN))), // ピ -> ﾋﾟ
-        '\u{30D7}' => return Some(('\u{FF8C}', Some(HANDAKUTEN))), // プ -> ﾌﾟ
-        '\u{30DA}' => return Some(('\u{FF8D}', Some(HANDAKUTEN))), // ペ -> ﾍﾟ
-        '\u{30DD}' => return Some(('\u{FF8E}', Some(HANDAKUTEN))), // ポ -> ﾎﾟ
-        _ => {}
-    }
-
-    // Check basic mapping
-    for &(hw, fw) in HW_TO_FW_KATAKANA {
-        if c == fw {
-            return Some((hw, None));
-        }
-    }
-
-    None
+    FW_TO_HW_MAP.get(&c).copied()
 }
 
 /// Convert full-width ASCII/digits (U+FF01-U+FF5E) to half-width ASCII (U+0021-U+007E).
