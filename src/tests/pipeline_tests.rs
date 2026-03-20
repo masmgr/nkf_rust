@@ -67,3 +67,96 @@ fn test_process_auto_detect_and_convert() {
     let result = process(sjis, &options).unwrap();
     assert_eq!(String::from_utf8(result).unwrap(), "日本語");
 }
+
+#[test]
+fn test_process_empty_input() {
+    let options = NkfOptions::default();
+    let result = process(b"", &options).unwrap();
+    assert!(result.is_empty());
+}
+
+#[test]
+fn test_process_zen_conversion() {
+    // Full-width "ＡＢＣ" -> half-width "ABC"
+    let input = "\u{FF21}\u{FF22}\u{FF23}".as_bytes();
+    let options = NkfOptions {
+        zen_mode: Some(ZenMode::AlphaToAscii),
+        preserve_hw_kana: true,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    assert_eq!(String::from_utf8(result).unwrap(), "ABC");
+}
+
+#[test]
+fn test_process_preserve_hw_kana() {
+    // Half-width katakana ｱｲｳ
+    let input = "\u{FF71}\u{FF72}\u{FF73}".as_bytes();
+
+    // With preserve_hw_kana: half-width kana should remain
+    let options = NkfOptions {
+        preserve_hw_kana: true,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    assert_eq!(String::from_utf8(result).unwrap(), "\u{FF71}\u{FF72}\u{FF73}");
+
+    // Without preserve_hw_kana: half-width kana -> full-width
+    let options = NkfOptions {
+        preserve_hw_kana: false,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    assert_eq!(String::from_utf8(result).unwrap(), "アイウ");
+}
+
+#[test]
+fn test_process_bom_handling() {
+    let input = b"\xEF\xBB\xBFHello";
+
+    // Output as UTF-8 (no BOM)
+    let options = NkfOptions {
+        output_encoding: Some(EncodingType::Utf8),
+        preserve_hw_kana: true,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    assert_eq!(result, b"Hello");
+
+    // Output as UTF-8 with BOM
+    let options = NkfOptions {
+        output_encoding: Some(EncodingType::Utf8Bom),
+        preserve_hw_kana: true,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    assert!(result.starts_with(&[0xEF, 0xBB, 0xBF]));
+    assert_eq!(&result[3..], b"Hello");
+}
+
+#[test]
+fn test_process_mime_decode_then_convert() {
+    // Base64 encode "Hello" as an RFC 2047 encoded-word
+    let input = b"=?UTF-8?B?SGVsbG8=?=";
+    let options = NkfOptions {
+        mime_decode: Some(MimeDecodeMode::Base64),
+        preserve_hw_kana: true,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    assert_eq!(String::from_utf8(result).unwrap(), "Hello");
+}
+
+#[test]
+fn test_process_mime_encode() {
+    let input = "Hello".as_bytes();
+    let options = NkfOptions {
+        mime_encode: Some(MimeEncodeMode::Base64),
+        preserve_hw_kana: true,
+        ..Default::default()
+    };
+    let result = process(input, &options).unwrap();
+    let result_str = String::from_utf8(result).unwrap();
+    assert!(result_str.starts_with("=?UTF-8?B?"));
+    assert!(result_str.ends_with("?="));
+}

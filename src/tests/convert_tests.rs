@@ -71,3 +71,24 @@ fn test_same_encoding() {
     let result = convert(input, EncodingType::Utf8, EncodingType::Utf8).unwrap();
     assert_eq!(result, input);
 }
+
+#[test]
+fn test_empty_input_conversion() {
+    let result = convert(b"", EncodingType::Utf8, EncodingType::ShiftJis).unwrap();
+    assert!(result.is_empty());
+}
+
+#[test]
+fn test_utf16be_bom_stripping() {
+    // UTF-16BE BOM (FE FF) + "Hi"
+    let input: &[u8] = &[0xFE, 0xFF, 0x00, 0x48, 0x00, 0x69];
+    let result = decode_to_utf8(input, EncodingType::Utf16Be).unwrap();
+    assert_eq!(result, "Hi");
+}
+
+#[test]
+fn test_ascii_conversion() {
+    let input = b"Hello, World!";
+    let result = convert(input, EncodingType::Ascii, EncodingType::Utf8).unwrap();
+    assert_eq!(result, b"Hello, World!");
+}

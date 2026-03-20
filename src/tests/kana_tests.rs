@@ -66,3 +66,33 @@ fn test_round_trip() {
     let fw = hw_to_fw_katakana(&hw);
     assert_eq!(fw, original);
 }
+
+#[test]
+fn test_zen_mode_space_to_two() {
+    // Full-width space -> two ASCII spaces
+    let result = apply_zen_conversion("\u{3000}テスト", ZenMode::SpaceToTwo);
+    assert!(result.starts_with("  "));
+    assert!(result.contains("テスト"));
+}
+
+#[test]
+fn test_zen_mode_katakana_to_hw() {
+    let result = apply_zen_conversion("アイウ", ZenMode::KatakanaToHw);
+    assert_eq!(result, "\u{FF71}\u{FF72}\u{FF73}");
+}
+
+#[test]
+fn test_dakuten_on_unsupported_char() {
+    // ｱ (a) followed by dakuten - ア doesn't support dakuten
+    let input = "\u{FF71}\u{FF9E}";
+    let result = hw_to_fw_katakana(input);
+    // Should produce ア + standalone dakuten ゛
+    assert_eq!(result, "ア\u{309B}");
+}
+
+#[test]
+fn test_hw_to_fw_empty_string() {
+    assert_eq!(hw_to_fw_katakana(""), "");
+    assert_eq!(fw_to_hw_katakana(""), "");
+    assert_eq!(fw_to_hw_ascii(""), "");
+}

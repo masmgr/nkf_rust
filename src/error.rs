@@ -29,3 +29,7 @@ impl From<io::Error> for NkfError {
         NkfError::Io(e)
     }
 }
+
+#[cfg(test)]
+#[path = "tests/error_tests.rs"]
+mod tests;

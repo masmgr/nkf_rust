@@ -72,3 +72,18 @@ fn test_detect_euc_jp() {
     let result = detect(input);
     assert_eq!(result.encoding, EncodingType::EucJp);
 }
+
+#[test]
+fn test_detect_single_byte() {
+    // Single high byte - should not panic
+    let result = detect(&[0x80]);
+    assert!(!result.had_bom);
+}
+
+#[test]
+fn test_detect_iso2022jp_esc_dollar_at() {
+    // ESC $ @ is an alternate ISO-2022-JP escape sequence
+    let input = b"\x1B$@ABCD\x1B(B";
+    let result = detect(input);
+    assert_eq!(result.encoding, EncodingType::Iso2022Jp);
+}

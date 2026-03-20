@@ -38,3 +38,15 @@ fn test_mixed_to_lf() {
 fn test_no_line_endings() {
     assert_eq!(convert_line_endings("hello", LineEnding::CrLf), "hello");
 }
+
+#[test]
+fn test_multiple_consecutive_crlf() {
+    assert_eq!(
+        convert_line_endings("a\r\n\r\nb", LineEnding::Lf),
+        "a\n\nb"
+    );
+    assert_eq!(
+        convert_line_endings("a\n\nb", LineEnding::CrLf),
+        "a\r\n\r\nb"
+    );
+}
