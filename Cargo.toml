@@ -1,0 +1,20 @@
+[package]
+name = "nkf_rust"
+version = "0.1.0"
+edition = "2024"
+description = "A Rust implementation of nkf (Network Kanji Filter)"
+
+[[bin]]
+name = "nkf"
+path = "src/main.rs"
+
+[lib]
+name = "nkf_rust"
+path = "src/lib.rs"
+
+[dependencies]
+encoding_rs = "0.8"
+chardetng = "0.1"
+base64 = "0.22"
+
+[dev-dependencies]
