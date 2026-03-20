@@ -249,9 +249,70 @@ pub fn apply_zen_conversion(input: &str, mode: ZenMode) -> String {
     match mode {
         ZenMode::AlphaToAscii | ZenMode::SpaceToOne => fw_to_hw_ascii(input),
         ZenMode::SpaceToTwo => input.replace('\u{3000}', "  "),
-        ZenMode::HtmlEntity => input.to_string(), // TODO: implement HTML entity conversion
+        ZenMode::HtmlEntity => {
+            let mut result = String::with_capacity(input.len());
+            for c in input.chars() {
+                match c {
+                    '&' => result.push_str("&amp;"),
+                    '<' => result.push_str("&lt;"),
+                    '>' => result.push_str("&gt;"),
+                    '"' => result.push_str("&quot;"),
+                    _ => result.push(c),
+                }
+            }
+            result
+        }
         ZenMode::KatakanaToHw => fw_to_hw_katakana(input),
     }
+}
+
+/// Hiragana/Katakana conversion mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HiraganaMode {
+    /// -h1: Katakana to Hiragana
+    KatakanaToHiragana,
+    /// -h2: Hiragana to Katakana
+    HiraganaToKatakana,
+    /// -h3: Toggle both directions
+    Toggle,
+}
+
+/// Apply hiragana/katakana conversion based on mode.
+#[must_use]
+pub fn apply_hiragana_conversion(input: &str, mode: HiraganaMode) -> String {
+    input
+        .chars()
+        .map(|c| {
+            let cp = c as u32;
+            match mode {
+                HiraganaMode::KatakanaToHiragana => {
+                    // Katakana U+30A1..U+30F6 -> Hiragana U+3041..U+3096
+                    if (0x30A1..=0x30F6).contains(&cp) {
+                        char::from_u32(cp - 0x60).unwrap_or(c)
+                    } else {
+                        c
+                    }
+                }
+                HiraganaMode::HiraganaToKatakana => {
+                    // Hiragana U+3041..U+3096 -> Katakana U+30A1..U+30F6
+                    if (0x3041..=0x3096).contains(&cp) {
+                        char::from_u32(cp + 0x60).unwrap_or(c)
+                    } else {
+                        c
+                    }
+                }
+                HiraganaMode::Toggle => {
+                    if (0x30A1..=0x30F6).contains(&cp) {
+                        char::from_u32(cp - 0x60).unwrap_or(c)
+                    } else if (0x3041..=0x3096).contains(&cp) {
+                        char::from_u32(cp + 0x60).unwrap_or(c)
+                    } else {
+                        c
+                    }
+                }
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -18,6 +18,19 @@ pub fn detect(input: &[u8]) -> DetectionResult {
     }
 
     // 1. BOM detection
+    // Check UTF-32 BOMs before UTF-16 (UTF-32 LE BOM starts with UTF-16 LE BOM bytes)
+    if input.starts_with(encoding_type::BOM_UTF32_BE) {
+        return DetectionResult {
+            encoding: EncodingType::Utf32Be,
+            had_bom: true,
+        };
+    }
+    if input.len() >= 4 && input.starts_with(encoding_type::BOM_UTF32_LE) {
+        return DetectionResult {
+            encoding: EncodingType::Utf32Le,
+            had_bom: true,
+        };
+    }
     if input.starts_with(encoding_type::BOM_UTF8) {
         return DetectionResult {
             encoding: EncodingType::Utf8Bom,

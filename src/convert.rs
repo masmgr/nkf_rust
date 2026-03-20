@@ -17,6 +17,8 @@ pub fn decode_to_utf8(input: &[u8], from: EncodingType) -> Result<String, NkfErr
             String::from_utf8(input.to_vec())
                 .map_err(|e| NkfError::Conversion(format!("Invalid UTF-8: {e}")))
         }
+        EncodingType::Utf32Be => decode_utf32(input, true),
+        EncodingType::Utf32Le => decode_utf32(input, false),
         _ => {
             let encoding = from.to_encoding_rs();
             // encoding_rs replaces unmappable chars with U+FFFD; we accept that behavior
@@ -37,6 +39,8 @@ pub fn encode_from_utf8(input: &str, to: EncodingType) -> Result<Vec<u8>, NkfErr
         }
         EncodingType::Utf16Be => Ok(encode_utf16(input, true)),
         EncodingType::Utf16Le => Ok(encode_utf16(input, false)),
+        EncodingType::Utf32Be => Ok(encode_utf32(input, true)),
+        EncodingType::Utf32Le => Ok(encode_utf32(input, false)),
         _ => {
             let encoding = to.to_encoding_rs();
             let (result, _, had_errors) = encoding.encode(input);
@@ -64,11 +68,56 @@ fn encode_utf16(input: &str, big_endian: bool) -> Vec<u8> {
     result
 }
 
+fn decode_utf32(input: &[u8], big_endian: bool) -> Result<String, NkfError> {
+    if input.len() % 4 != 0 {
+        return Err(NkfError::Conversion(
+            "Invalid UTF-32 input length".to_string(),
+        ));
+    }
+    let mut result = String::new();
+    for chunk in input.chunks(4) {
+        let cp = if big_endian {
+            u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+        } else {
+            u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
+        };
+        let c = char::from_u32(cp).ok_or_else(|| {
+            NkfError::Conversion(format!("Invalid UTF-32 code point: {cp:#X}"))
+        })?;
+        result.push(c);
+    }
+    Ok(result)
+}
+
+fn encode_utf32(input: &str, big_endian: bool) -> Vec<u8> {
+    let mut result = Vec::new();
+    for c in input.chars() {
+        let cp = c as u32;
+        let bytes = if big_endian {
+            cp.to_be_bytes()
+        } else {
+            cp.to_le_bytes()
+        };
+        result.extend_from_slice(&bytes);
+    }
+    result
+}
+
 fn strip_bom(input: &[u8], encoding: EncodingType) -> &[u8] {
     match encoding {
         EncodingType::Utf8Bom | EncodingType::Utf8 => {
             input
                 .strip_prefix(encoding_type::BOM_UTF8)
+                .unwrap_or(input)
+        }
+        EncodingType::Utf32Be => {
+            input
+                .strip_prefix(encoding_type::BOM_UTF32_BE)
+                .unwrap_or(input)
+        }
+        EncodingType::Utf32Le => {
+            input
+                .strip_prefix(encoding_type::BOM_UTF32_LE)
                 .unwrap_or(input)
         }
         EncodingType::Utf16Be => {

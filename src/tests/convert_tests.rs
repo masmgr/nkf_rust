@@ -92,3 +92,50 @@ fn test_ascii_conversion() {
     let result = convert(input, EncodingType::Ascii, EncodingType::Utf8).unwrap();
     assert_eq!(result, b"Hello, World!");
 }
+
+#[test]
+fn test_utf8_to_utf32be() {
+    let input = "AB".as_bytes();
+    let result = convert(input, EncodingType::Utf8, EncodingType::Utf32Be).unwrap();
+    assert_eq!(result, vec![0x00, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x42]);
+}
+
+#[test]
+fn test_utf8_to_utf32le() {
+    let input = "AB".as_bytes();
+    let result = convert(input, EncodingType::Utf8, EncodingType::Utf32Le).unwrap();
+    assert_eq!(result, vec![0x41, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00]);
+}
+
+#[test]
+fn test_utf32be_to_utf8() {
+    let input: &[u8] = &[0x00, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x42];
+    let result = convert(input, EncodingType::Utf32Be, EncodingType::Utf8).unwrap();
+    assert_eq!(String::from_utf8(result).unwrap(), "AB");
+}
+
+#[test]
+fn test_utf32le_to_utf8() {
+    let input: &[u8] = &[0x41, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00];
+    let result = convert(input, EncodingType::Utf32Le, EncodingType::Utf8).unwrap();
+    assert_eq!(String::from_utf8(result).unwrap(), "AB");
+}
+
+#[test]
+fn test_utf32_japanese() {
+    // "あ" = U+3042
+    let input = "あ".as_bytes();
+    let result = convert(input, EncodingType::Utf8, EncodingType::Utf32Be).unwrap();
+    assert_eq!(result, vec![0x00, 0x00, 0x30, 0x42]);
+
+    let roundtrip = convert(&result, EncodingType::Utf32Be, EncodingType::Utf8).unwrap();
+    assert_eq!(String::from_utf8(roundtrip).unwrap(), "あ");
+}
+
+#[test]
+fn test_utf32be_bom_stripping() {
+    // UTF-32BE BOM + "A"
+    let input: &[u8] = &[0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x41];
+    let result = decode_to_utf8(input, EncodingType::Utf32Be).unwrap();
+    assert_eq!(result, "A");
+}

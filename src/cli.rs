@@ -27,12 +27,35 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
 
         // Handle long options
         if arg.starts_with("--") {
-            match arg.as_str() {
-                "--guess" => options.guess_mode = true,
-                "--overwrite" => options.overwrite = true,
-                "--help" => options.show_help = true,
-                "--version" => options.show_version = true,
-                _ => return Err(NkfError::InvalidArgs(format!("Unknown option: {arg}"))),
+            if let Some(enc_name) = arg.strip_prefix("--ic=") {
+                options.input_encoding = Some(
+                    EncodingType::from_name(enc_name)
+                        .ok_or_else(|| NkfError::InvalidArgs(format!("Unknown encoding: {enc_name}")))?,
+                );
+            } else if let Some(enc_name) = arg.strip_prefix("--oc=") {
+                options.output_encoding = Some(
+                    EncodingType::from_name(enc_name)
+                        .ok_or_else(|| NkfError::InvalidArgs(format!("Unknown encoding: {enc_name}")))?,
+                );
+            } else {
+                match arg.as_str() {
+                    "--guess" => options.guess_mode = true,
+                    "--overwrite" => options.overwrite = true,
+                    "--help" => options.show_help = true,
+                    "--version" => options.show_version = true,
+                    "--jis" => options.output_encoding = Some(EncodingType::Iso2022Jp),
+                    "--euc" => options.output_encoding = Some(EncodingType::EucJp),
+                    "--sjis" => options.output_encoding = Some(EncodingType::ShiftJis),
+                    "--unix" => options.line_ending = Some(LineEnding::Lf),
+                    "--mac" => options.line_ending = Some(LineEnding::Cr),
+                    "--msdos" | "--windows" => options.line_ending = Some(LineEnding::CrLf),
+                    "--hiragana" => options.hiragana_mode = Some(crate::kana::HiraganaMode::KatakanaToHiragana),
+                    "--katakana" => options.hiragana_mode = Some(crate::kana::HiraganaMode::HiraganaToKatakana),
+                    "--url-input" => options.url_input = true,
+                    "--cap-input" => options.cap_input = true,
+                    "--numchar-input" => options.numchar_input = true,
+                    _ => return Err(NkfError::InvalidArgs(format!("Unknown option: {arg}"))),
+                }
             }
             i += 1;
             continue;
@@ -106,6 +129,52 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                         Some(crate::mime::parse_mime_encode_mode(&mode_char)?);
                 }
 
+                // Line ending shortcuts
+                b'd' => options.line_ending = Some(LineEnding::Lf),
+                b'c' => options.line_ending = Some(LineEnding::CrLf),
+
+                // Hiragana/Katakana conversion: -h1, -h2, -h3
+                b'h' => {
+                    if j + 1 < bytes.len() {
+                        j += 1;
+                        match bytes[j] {
+                            b'1' => options.hiragana_mode = Some(crate::kana::HiraganaMode::KatakanaToHiragana),
+                            b'2' => options.hiragana_mode = Some(crate::kana::HiraganaMode::HiraganaToKatakana),
+                            b'3' => options.hiragana_mode = Some(crate::kana::HiraganaMode::Toggle),
+                            _ => {
+                                return Err(NkfError::InvalidArgs(format!(
+                                    "Unknown hiragana mode: -h{}",
+                                    bytes[j] as char
+                                )));
+                            }
+                        }
+                    } else {
+                        return Err(NkfError::InvalidArgs(
+                            "-h requires a mode (1, 2, or 3)".to_string(),
+                        ));
+                    }
+                }
+
+                // Line folding: -f[cols]
+                b'f' => {
+                    let rest = &arg[j + 1..];
+                    let cols = if rest.is_empty() {
+                        60
+                    } else {
+                        rest.parse::<usize>().map_err(|_| {
+                            NkfError::InvalidArgs(format!("Invalid fold width: {rest}"))
+                        })?
+                    };
+                    options.fold_columns = Some(cols);
+                    j = bytes.len();
+                    continue;
+                }
+
+                // Line folding with default width
+                b'F' => {
+                    options.fold_columns = Some(80);
+                }
+
                 // Half-width kana preservation
                 b'x' => options.preserve_hw_kana = true,
 
@@ -156,6 +225,8 @@ fn parse_utf_variant(rest: &str) -> EncodingType {
     match rest {
         "16B" | "16B0" | "16" => EncodingType::Utf16Be, // default UTF-16 is BE
         "16L" | "16L0" => EncodingType::Utf16Le,
+        "32B" | "32B0" | "32" => EncodingType::Utf32Be, // default UTF-32 is BE
+        "32L" | "32L0" => EncodingType::Utf32Le,
         _ => EncodingType::Utf8,
     }
 }
@@ -167,26 +238,35 @@ pub fn print_help() {
 Usage: nkf [options] [file ...]
 
 Output encoding:
-  -j        ISO-2022-JP (JIS)
-  -s        Shift_JIS
-  -e        EUC-JP
-  -w        UTF-8 (default)
-  -w16B     UTF-16BE
-  -w16L     UTF-16LE
+  -j            ISO-2022-JP (JIS)
+  -s            Shift_JIS
+  -e            EUC-JP
+  -w            UTF-8 (default)
+  -w16B         UTF-16BE
+  -w16L         UTF-16LE
+  -w32B         UTF-32BE
+  -w32L         UTF-32LE
+  --oc=NAME     Specify output encoding by name
 
 Input encoding:
-  -J        ISO-2022-JP
-  -S        Shift_JIS
-  -E        EUC-JP
-  -W        UTF-8
+  -J            ISO-2022-JP
+  -S            Shift_JIS
+  -E            EUC-JP
+  -W            UTF-8
+  --ic=NAME     Specify input encoding by name
+
+Encoding presets:
+  --jis         Output as ISO-2022-JP
+  --euc         Output as EUC-JP
+  --sjis        Output as Shift_JIS
 
 Detection:
   -g, --guess   Detect and print encoding
 
 Line endings:
-  -Lu       Unix (LF)
-  -Lw       Windows (CRLF)
-  -Lm       Mac (CR)
+  -Lu, -d, --unix      Unix (LF)
+  -Lw, -c, --windows   Windows (CRLF)
+  -Lm, --mac           Mac (CR)
 
 MIME:
   -mB       MIME Base64 decode
@@ -196,8 +276,22 @@ MIME:
   -MQ       MIME Quoted-Printable encode
 
 Kana:
-  -x        Preserve half-width kana
-  -Z[0-4]   Full-width conversion
+  -x            Preserve half-width kana
+  -Z[0-4]       Full-width conversion (Z3=HTML entities)
+  -h1           Katakana to Hiragana
+  -h2           Hiragana to Katakana
+  -h3           Katakana/Hiragana toggle
+  --hiragana    Same as -h1
+  --katakana    Same as -h2
+
+Text processing:
+  -f[cols]      Fold lines at specified width (default: 60)
+  -F            Fold lines at 80 columns
+
+Input decoding:
+  --url-input       Decode URL-encoded (%xx) input
+  --cap-input       Decode hex-encoded (:xx) input
+  --numchar-input   Decode numeric character references
 
 Other:
   --overwrite   Overwrite input files

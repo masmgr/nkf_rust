@@ -87,3 +87,28 @@ fn test_detect_iso2022jp_esc_dollar_at() {
     let result = detect(input);
     assert_eq!(result.encoding, EncodingType::Iso2022Jp);
 }
+
+#[test]
+fn test_detect_utf32be_bom() {
+    let input: &[u8] = &[0x00, 0x00, 0xFE, 0xFF, 0x00, 0x00, 0x00, 0x41];
+    let result = detect(input);
+    assert_eq!(result.encoding, EncodingType::Utf32Be);
+    assert!(result.had_bom);
+}
+
+#[test]
+fn test_detect_utf32le_bom() {
+    let input: &[u8] = &[0xFF, 0xFE, 0x00, 0x00, 0x41, 0x00, 0x00, 0x00];
+    let result = detect(input);
+    assert_eq!(result.encoding, EncodingType::Utf32Le);
+    assert!(result.had_bom);
+}
+
+#[test]
+fn test_detect_utf16le_not_utf32le() {
+    // UTF-16LE BOM followed by non-zero byte (not UTF-32 LE pattern)
+    let input: &[u8] = &[0xFF, 0xFE, 0x41, 0x00];
+    let result = detect(input);
+    assert_eq!(result.encoding, EncodingType::Utf16Le);
+    assert!(result.had_bom);
+}

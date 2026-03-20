@@ -3,6 +3,8 @@ use encoding_rs::{EUC_JP, Encoding, ISO_2022_JP, SHIFT_JIS, UTF_8, UTF_16BE, UTF
 pub const BOM_UTF8: &[u8] = &[0xEF, 0xBB, 0xBF];
 pub const BOM_UTF16_BE: &[u8] = &[0xFE, 0xFF];
 pub const BOM_UTF16_LE: &[u8] = &[0xFF, 0xFE];
+pub const BOM_UTF32_BE: &[u8] = &[0x00, 0x00, 0xFE, 0xFF];
+pub const BOM_UTF32_LE: &[u8] = &[0xFF, 0xFE, 0x00, 0x00];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodingType {
@@ -14,6 +16,8 @@ pub enum EncodingType {
     ShiftJis,
     EucJp,
     Iso2022Jp,
+    Utf32Be,
+    Utf32Le,
 }
 
 impl EncodingType {
@@ -23,6 +27,7 @@ impl EncodingType {
             EncodingType::Ascii | EncodingType::Utf8 | EncodingType::Utf8Bom => UTF_8,
             EncodingType::Utf16Be => UTF_16BE,
             EncodingType::Utf16Le => UTF_16LE,
+            EncodingType::Utf32Be | EncodingType::Utf32Le => UTF_8, // encoding_rs doesn't support UTF-32; handled manually
             EncodingType::ShiftJis => SHIFT_JIS,
             EncodingType::EucJp => EUC_JP,
             EncodingType::Iso2022Jp => ISO_2022_JP,
@@ -56,6 +61,26 @@ impl EncodingType {
             EncodingType::ShiftJis => "Shift_JIS",
             EncodingType::EucJp => "EUC-JP",
             EncodingType::Iso2022Jp => "ISO-2022-JP",
+            EncodingType::Utf32Be => "UTF-32BE",
+            EncodingType::Utf32Le => "UTF-32LE",
+        }
+    }
+
+    /// Parse encoding name (case-insensitive) to EncodingType.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name.to_ascii_uppercase().replace('-', "").replace('_', "").as_str() {
+            "ASCII" => Some(EncodingType::Ascii),
+            "UTF8" => Some(EncodingType::Utf8),
+            "UTF8BOM" => Some(EncodingType::Utf8Bom),
+            "UTF16" | "UTF16BE" => Some(EncodingType::Utf16Be),
+            "UTF16LE" => Some(EncodingType::Utf16Le),
+            "UTF32" | "UTF32BE" => Some(EncodingType::Utf32Be),
+            "UTF32LE" => Some(EncodingType::Utf32Le),
+            "SHIFTJIS" | "SJIS" | "CP932" | "WINDOWS31J" => Some(EncodingType::ShiftJis),
+            "EUCJP" => Some(EncodingType::EucJp),
+            "ISO2022JP" | "JIS" => Some(EncodingType::Iso2022Jp),
+            _ => None,
         }
     }
 }

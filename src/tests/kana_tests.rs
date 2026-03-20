@@ -96,3 +96,59 @@ fn test_hw_to_fw_empty_string() {
     assert_eq!(fw_to_hw_katakana(""), "");
     assert_eq!(fw_to_hw_ascii(""), "");
 }
+
+#[test]
+fn test_hiragana_katakana_to_hiragana() {
+    assert_eq!(
+        apply_hiragana_conversion("アイウエオ", HiraganaMode::KatakanaToHiragana),
+        "あいうえお"
+    );
+}
+
+#[test]
+fn test_hiragana_hiragana_to_katakana() {
+    assert_eq!(
+        apply_hiragana_conversion("あいうえお", HiraganaMode::HiraganaToKatakana),
+        "アイウエオ"
+    );
+}
+
+#[test]
+fn test_hiragana_toggle() {
+    assert_eq!(
+        apply_hiragana_conversion("あアいイ", HiraganaMode::Toggle),
+        "アあイい"
+    );
+}
+
+#[test]
+fn test_hiragana_non_kana_unchanged() {
+    assert_eq!(
+        apply_hiragana_conversion("Hello123", HiraganaMode::KatakanaToHiragana),
+        "Hello123"
+    );
+}
+
+#[test]
+fn test_hiragana_mixed() {
+    assert_eq!(
+        apply_hiragana_conversion("カタカナとひらがな", HiraganaMode::Toggle),
+        "かたかなトヒラガナ"
+    );
+}
+
+#[test]
+fn test_zen_html_entity() {
+    assert_eq!(
+        apply_zen_conversion("<p class=\"test\">&</p>", ZenMode::HtmlEntity),
+        "&lt;p class=&quot;test&quot;&gt;&amp;&lt;/p&gt;"
+    );
+}
+
+#[test]
+fn test_zen_html_entity_no_special_chars() {
+    assert_eq!(
+        apply_zen_conversion("hello world", ZenMode::HtmlEntity),
+        "hello world"
+    );
+}

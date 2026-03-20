@@ -5,7 +5,9 @@ use crate::convert;
 use crate::detect;
 use crate::encoding_type::EncodingType;
 use crate::error::NkfError;
-use crate::kana::{self, ZenMode};
+use crate::fold;
+use crate::input_decode;
+use crate::kana::{self, HiraganaMode, ZenMode};
 use crate::line_ending::{self, LineEnding};
 use crate::mime::{self, MimeDecodeMode, MimeEncodeMode};
 
@@ -18,6 +20,11 @@ pub struct NkfOptions {
     pub mime_encode: Option<MimeEncodeMode>,
     pub zen_mode: Option<ZenMode>,
     pub preserve_hw_kana: bool,
+    pub hiragana_mode: Option<HiraganaMode>,
+    pub fold_columns: Option<usize>,
+    pub url_input: bool,
+    pub cap_input: bool,
+    pub numchar_input: bool,
     pub guess_mode: bool,
     pub overwrite: bool,
     pub show_help: bool,
@@ -27,11 +34,23 @@ pub struct NkfOptions {
 
 /// Process input bytes according to the given options.
 pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> {
-    // Step 1: MIME decode (if enabled)
-    let input = if let Some(mime_mode) = options.mime_decode {
-        mime::mime_decode(input, mime_mode)
+    // Step 0: Input decoding (URL, cap)
+    let input = if options.url_input {
+        input_decode::decode_url_input(input)
     } else {
         input.to_vec()
+    };
+    let input = if options.cap_input {
+        input_decode::decode_cap_input(&input)
+    } else {
+        input
+    };
+
+    // Step 1: MIME decode (if enabled)
+    let input = if let Some(mime_mode) = options.mime_decode {
+        mime::mime_decode(&input, mime_mode)
+    } else {
+        input
     };
 
     // Step 2: Detect input encoding (if not specified)
@@ -50,9 +69,23 @@ pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> 
     // Step 5: Decode to UTF-8
     let utf8 = convert::decode_to_utf8(&input, input_encoding)?;
 
+    // Step 5.5: Numeric character reference decoding (operates on UTF-8 text)
+    let utf8 = if options.numchar_input {
+        input_decode::decode_numchar_input(&utf8)
+    } else {
+        utf8
+    };
+
     // Step 6: Apply kana/zen conversions on UTF-8
     let utf8 = if let Some(zen_mode) = options.zen_mode {
         kana::apply_zen_conversion(&utf8, zen_mode)
+    } else {
+        utf8
+    };
+
+    // Step 6.5: Apply hiragana/katakana conversion
+    let utf8 = if let Some(mode) = options.hiragana_mode {
+        kana::apply_hiragana_conversion(&utf8, mode)
     } else {
         utf8
     };
@@ -67,6 +100,13 @@ pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> 
     // Step 8: Convert line endings (if specified)
     let utf8 = if let Some(le) = options.line_ending {
         line_ending::convert_line_endings(&utf8, le)
+    } else {
+        utf8
+    };
+
+    // Step 8.5: Fold lines (if specified)
+    let utf8 = if let Some(cols) = options.fold_columns {
+        fold::fold_lines(&utf8, cols)
     } else {
         utf8
     };
