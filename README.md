@@ -86,7 +86,3 @@ let output = process("日本語".as_bytes(), &options).unwrap();
 | `-x` | Preserve half-width kana |
 | `-Z[0-4]` | Full-width conversion |
 | `--overwrite` | Overwrite input files |
-
-## License
-
-MIT
