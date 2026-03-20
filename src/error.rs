@@ -13,11 +13,11 @@ pub enum NkfError {
 impl fmt::Display for NkfError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            NkfError::Io(e) => write!(f, "I/O error: {}", e),
-            NkfError::Conversion(s) => write!(f, "Encoding conversion error: {}", s),
-            NkfError::UnsupportedEncoding(s) => write!(f, "Unsupported encoding: {}", s),
-            NkfError::InvalidMime(s) => write!(f, "Invalid MIME encoding: {}", s),
-            NkfError::InvalidArgs(s) => write!(f, "Invalid arguments: {}", s),
+            NkfError::Io(e) => write!(f, "I/O error: {e}"),
+            NkfError::Conversion(s) => write!(f, "Encoding conversion error: {s}"),
+            NkfError::UnsupportedEncoding(s) => write!(f, "Unsupported encoding: {s}"),
+            NkfError::InvalidMime(s) => write!(f, "Invalid MIME encoding: {s}"),
+            NkfError::InvalidArgs(s) => write!(f, "Invalid arguments: {s}"),
         }
     }
 }

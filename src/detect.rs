@@ -8,6 +8,7 @@ pub struct DetectionResult {
     pub had_bom: bool,
 }
 
+#[must_use]
 pub fn detect(input: &[u8]) -> DetectionResult {
     if input.is_empty() {
         return DetectionResult {

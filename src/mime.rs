@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use base64::{Engine as _, engine::general_purpose};
 
 use crate::error::NkfError;
@@ -17,14 +19,14 @@ pub enum MimeEncodeMode {
 
 /// Decode MIME encoded-words in input bytes (RFC 2047).
 /// Handles patterns like =?charset?B?base64data?= and =?charset?Q?qpdata?=
+#[must_use]
 pub fn mime_decode(input: &[u8], mode: MimeDecodeMode) -> Vec<u8> {
     if mode == MimeDecodeMode::None {
         return input.to_vec();
     }
 
-    let input_str = match std::str::from_utf8(input) {
-        Ok(s) => s,
-        Err(_) => return input.to_vec(),
+    let Ok(input_str) = std::str::from_utf8(input) else {
+        return input.to_vec();
     };
 
     // Try to decode RFC 2047 encoded-words
@@ -42,15 +44,16 @@ pub fn mime_decode(input: &[u8], mode: MimeDecodeMode) -> Vec<u8> {
 }
 
 /// Encode content as MIME (RFC 2047 encoded-word).
+#[must_use]
 pub fn mime_encode(input: &str, mode: MimeEncodeMode, charset: &str) -> String {
     match mode {
         MimeEncodeMode::Base64 => {
             let encoded = general_purpose::STANDARD.encode(input.as_bytes());
-            format!("=?{}?B?{}?=", charset, encoded)
+            format!("=?{charset}?B?{encoded}?=")
         }
         MimeEncodeMode::QuotedPrintable => {
             let encoded = encode_quoted_printable(input.as_bytes());
-            format!("=?{}?Q?{}?=", charset, encoded)
+            format!("=?{charset}?Q?{encoded}?=")
         }
     }
 }
@@ -66,7 +69,6 @@ fn decode_rfc2047(input: &str) -> Vec<u8> {
 
         // Find charset
         if let Some(q1) = after_start.find('?') {
-            let _charset = &after_start[..q1];
             let after_charset = &after_start[q1 + 1..];
 
             // Find encoding type (B or Q)
@@ -169,7 +171,7 @@ fn encode_quoted_printable(input: &[u8]) -> String {
         } else if byte.is_ascii_alphanumeric() || byte == b'.' || byte == b'-' || byte == b'*' {
             result.push(byte as char);
         } else {
-            result.push_str(&format!("={:02X}", byte));
+            let _ = write!(result, "={byte:02X}");
         }
     }
 
@@ -188,11 +190,12 @@ fn hex_val(b: u8) -> Option<u8> {
 /// Parse MIME decode mode from nkf -m flag value.
 pub fn parse_mime_decode_mode(s: &str) -> Result<MimeDecodeMode, NkfError> {
     match s {
-        "B" | "b" => Ok(MimeDecodeMode::Base64),
+        "B" | "b" | "" => Ok(MimeDecodeMode::Base64), // default
         "Q" | "q" => Ok(MimeDecodeMode::QuotedPrintable),
         "0" => Ok(MimeDecodeMode::None),
-        "" => Ok(MimeDecodeMode::Base64), // default
-        _ => Err(NkfError::InvalidMime(format!("Unknown MIME decode mode: {}", s))),
+        _ => Err(NkfError::InvalidMime(format!(
+            "Unknown MIME decode mode: {s}"
+        ))),
     }
 }
 
@@ -201,7 +204,9 @@ pub fn parse_mime_encode_mode(s: &str) -> Result<MimeEncodeMode, NkfError> {
     match s {
         "B" | "b" | "" => Ok(MimeEncodeMode::Base64), // default
         "Q" | "q" => Ok(MimeEncodeMode::QuotedPrintable),
-        _ => Err(NkfError::InvalidMime(format!("Unknown MIME encode mode: {}", s))),
+        _ => Err(NkfError::InvalidMime(format!(
+            "Unknown MIME encode mode: {s}"
+        ))),
     }
 }
 
@@ -227,7 +232,7 @@ mod tests {
     fn test_rfc2047_base64() {
         // =?UTF-8?B?44GT44KT44Gr44Gh44Gv?= = "こんにちは" in UTF-8 base64
         let encoded = general_purpose::STANDARD.encode("こんにちは".as_bytes());
-        let input = format!("=?UTF-8?B?{}?=", encoded);
+        let input = format!("=?UTF-8?B?{encoded}?=");
         let result = mime_decode(input.as_bytes(), MimeDecodeMode::Base64);
         assert_eq!(String::from_utf8(result).unwrap(), "こんにちは");
     }

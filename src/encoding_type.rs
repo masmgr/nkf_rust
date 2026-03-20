@@ -1,4 +1,4 @@
-use encoding_rs::*;
+use encoding_rs::{EUC_JP, Encoding, ISO_2022_JP, SHIFT_JIS, UTF_8, UTF_16BE, UTF_16LE};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodingType {
@@ -13,6 +13,7 @@ pub enum EncodingType {
 }
 
 impl EncodingType {
+    #[must_use]
     pub fn to_encoding_rs(&self) -> &'static Encoding {
         match self {
             EncodingType::Ascii | EncodingType::Utf8 | EncodingType::Utf8Bom => UTF_8,
@@ -24,6 +25,7 @@ impl EncodingType {
         }
     }
 
+    #[must_use]
     pub fn from_encoding_rs(enc: &'static Encoding) -> Option<Self> {
         if enc == UTF_8 {
             Some(EncodingType::Utf8)
@@ -42,6 +44,7 @@ impl EncodingType {
         }
     }
 
+    #[must_use]
     pub fn display_name(&self) -> &'static str {
         match self {
             EncodingType::Ascii => "ASCII",
@@ -79,7 +82,7 @@ mod tests {
         for t in &types {
             let enc = t.to_encoding_rs();
             let back = EncodingType::from_encoding_rs(enc).unwrap();
-            assert_eq!(*t, back, "round-trip failed for {:?}", t);
+            assert_eq!(*t, back, "round-trip failed for {t:?}");
         }
     }
 

@@ -9,7 +9,7 @@ fn main() {
     let options = match cli::parse_args(args) {
         Ok(opts) => opts,
         Err(e) => {
-            eprintln!("nkf: {}", e);
+            eprintln!("nkf: {e}");
             process::exit(1);
         }
     };
@@ -25,7 +25,7 @@ fn main() {
     }
 
     if let Err(e) = pipeline::run(&options) {
-        eprintln!("nkf: {}", e);
+        eprintln!("nkf: {e}");
         process::exit(1);
     }
 }

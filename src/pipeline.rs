@@ -9,7 +9,7 @@ use crate::kana::{self, ZenMode};
 use crate::line_ending::{self, LineEnding};
 use crate::mime::{self, MimeDecodeMode, MimeEncodeMode};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct NkfOptions {
     pub input_encoding: Option<EncodingType>,
     pub output_encoding: Option<EncodingType>,
@@ -23,25 +23,6 @@ pub struct NkfOptions {
     pub show_help: bool,
     pub show_version: bool,
     pub files: Vec<String>,
-}
-
-impl Default for NkfOptions {
-    fn default() -> Self {
-        NkfOptions {
-            input_encoding: None,
-            output_encoding: None,
-            line_ending: None,
-            mime_decode: None,
-            mime_encode: None,
-            zen_mode: None,
-            preserve_hw_kana: false,
-            guess_mode: false,
-            overwrite: false,
-            show_help: false,
-            show_version: false,
-            files: Vec::new(),
-        }
-    }
 }
 
 /// Process input bytes according to the given options.
@@ -60,7 +41,7 @@ pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> 
     // Step 3: If guess mode, just return the encoding name
     if options.guess_mode {
         let name = input_encoding.display_name();
-        return Ok(format!("{}\n", name).into_bytes());
+        return Ok(format!("{name}\n").into_bytes());
     }
 
     // Step 4: Determine output encoding (default: UTF-8)
@@ -77,10 +58,10 @@ pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> 
     };
 
     // Step 7: Convert half-width kana to full-width (unless -x is set)
-    let utf8 = if !options.preserve_hw_kana {
-        kana::hw_to_fw_katakana(&utf8)
-    } else {
+    let utf8 = if options.preserve_hw_kana {
         utf8
+    } else {
+        kana::hw_to_fw_katakana(&utf8)
     };
 
     // Step 8: Convert line endings (if specified)

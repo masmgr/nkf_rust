@@ -32,7 +32,7 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                 "--overwrite" => options.overwrite = true,
                 "--help" => options.show_help = true,
                 "--version" => options.show_version = true,
-                _ => return Err(NkfError::InvalidArgs(format!("Unknown option: {}", arg))),
+                _ => return Err(NkfError::InvalidArgs(format!("Unknown option: {arg}"))),
             }
             i += 1;
             continue;
@@ -96,7 +96,7 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                 b'm' => {
                     let mode_char = if j + 1 < bytes.len() {
                         j += 1;
-                        std::str::from_utf8(&bytes[j..j + 1]).unwrap_or("")
+                        std::str::from_utf8(&bytes[j..=j]).unwrap_or("")
                     } else {
                         ""
                     };
@@ -107,7 +107,7 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                 b'M' => {
                     let mode_char = if j + 1 < bytes.len() {
                         j += 1;
-                        std::str::from_utf8(&bytes[j..j + 1]).unwrap_or("")
+                        std::str::from_utf8(&bytes[j..=j]).unwrap_or("")
                     } else {
                         ""
                     };
@@ -123,7 +123,6 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
                         j += 1;
                         match bytes[j] {
                             b'0' => ZenMode::AlphaToAscii,
-                            b'1' => ZenMode::SpaceToOne,
                             b'2' => ZenMode::SpaceToTwo,
                             b'3' => ZenMode::HtmlEntity,
                             b'4' => ZenMode::KatakanaToHw,
@@ -152,20 +151,16 @@ pub fn parse_args(args: Vec<String>) -> Result<NkfOptions, NkfError> {
 
 fn parse_utf_output(rest: &str) -> EncodingType {
     match rest {
-        "" | "8" | "80" => EncodingType::Utf8,
-        "16B" | "16B0" => EncodingType::Utf16Be,
+        "16B" | "16B0" | "16" => EncodingType::Utf16Be, // default UTF-16 is BE
         "16L" | "16L0" => EncodingType::Utf16Le,
-        "16" => EncodingType::Utf16Be, // default UTF-16 is BE
         _ => EncodingType::Utf8,
     }
 }
 
 fn parse_utf_input(rest: &str) -> EncodingType {
     match rest {
-        "" | "8" | "80" => EncodingType::Utf8,
-        "16B" | "16B0" => EncodingType::Utf16Be,
+        "16B" | "16B0" | "16" => EncodingType::Utf16Be,
         "16L" | "16L0" => EncodingType::Utf16Le,
-        "16" => EncodingType::Utf16Be,
         _ => EncodingType::Utf8,
     }
 }
