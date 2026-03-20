@@ -1,15 +1,44 @@
+use std::borrow::Cow;
+
+/// Decode URL-encoded (%xx) byte sequences, returning Cow to avoid allocation when no encoding found.
+#[must_use]
+pub fn decode_url_input_cow(input: &[u8]) -> Cow<'_, [u8]> {
+    if !input.contains(&b'%') {
+        return Cow::Borrowed(input);
+    }
+    Cow::Owned(decode_url_input(input))
+}
+
+/// Decode hex-encoded (:xx) byte sequences, returning Cow to avoid allocation when no encoding found.
+#[must_use]
+pub fn decode_cap_input_cow(input: &[u8]) -> Cow<'_, [u8]> {
+    if !input.contains(&b':') {
+        return Cow::Borrowed(input);
+    }
+    Cow::Owned(decode_cap_input(input))
+}
+
+/// Decode numeric character references, returning Cow to avoid allocation when no references found.
+#[must_use]
+pub fn decode_numchar_input_cow(input: &str) -> Cow<'_, str> {
+    if !input.contains("&#") {
+        return Cow::Borrowed(input);
+    }
+    Cow::Owned(decode_numchar_input(input))
+}
+
 /// Decode URL-encoded (%xx) byte sequences.
 #[must_use]
 pub fn decode_url_input(input: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(input.len());
     let mut i = 0;
     while i < input.len() {
-        if input[i] == b'%' && i + 2 < input.len() {
-            if let Some(byte) = decode_hex_pair(input[i + 1], input[i + 2]) {
-                result.push(byte);
-                i += 3;
-                continue;
-            }
+        if input[i] == b'%' && i + 2 < input.len()
+            && let Some(byte) = decode_hex_pair(input[i + 1], input[i + 2])
+        {
+            result.push(byte);
+            i += 3;
+            continue;
         }
         result.push(input[i]);
         i += 1;
@@ -23,12 +52,12 @@ pub fn decode_cap_input(input: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(input.len());
     let mut i = 0;
     while i < input.len() {
-        if input[i] == b':' && i + 2 < input.len() {
-            if let Some(byte) = decode_hex_pair(input[i + 1], input[i + 2]) {
-                result.push(byte);
-                i += 3;
-                continue;
-            }
+        if input[i] == b':' && i + 2 < input.len()
+            && let Some(byte) = decode_hex_pair(input[i + 1], input[i + 2])
+        {
+            result.push(byte);
+            i += 3;
+            continue;
         }
         result.push(input[i]);
         i += 1;
@@ -81,12 +110,12 @@ pub fn decode_numchar_input(input: &str) -> String {
                     num_str.parse::<u32>().ok()
                 };
 
-                if let Some(cp) = parsed {
-                    if let Some(c) = char::from_u32(cp) {
-                        result.push(c);
-                        i = end + 1;
-                        continue;
-                    }
+                if let Some(cp) = parsed
+                    && let Some(c) = char::from_u32(cp)
+                {
+                    result.push(c);
+                    i = end + 1;
+                    continue;
                 }
             }
         }

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs;
 use std::io::{self, Read, Write};
 
@@ -34,21 +35,21 @@ pub struct NkfOptions {
 
 /// Process input bytes according to the given options.
 pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> {
-    // Step 0: Input decoding (URL, cap)
-    let input = if options.url_input {
-        input_decode::decode_url_input(input)
+    // Step 0: Input decoding (URL, cap) — use Cow to avoid allocation when not needed
+    let input: Cow<'_, [u8]> = if options.url_input {
+        input_decode::decode_url_input_cow(input)
     } else {
-        input.to_vec()
+        Cow::Borrowed(input)
     };
-    let input = if options.cap_input {
-        input_decode::decode_cap_input(&input)
+    let input: Cow<'_, [u8]> = if options.cap_input {
+        input_decode::decode_cap_input_cow(&input)
     } else {
         input
     };
 
     // Step 1: MIME decode (if enabled)
-    let input = if let Some(mime_mode) = options.mime_decode {
-        mime::mime_decode(&input, mime_mode)
+    let input: Cow<'_, [u8]> = if let Some(mime_mode) = options.mime_decode {
+        mime::mime_decode_cow(&input, mime_mode)
     } else {
         input
     };
@@ -66,55 +67,70 @@ pub fn process(input: &[u8], options: &NkfOptions) -> Result<Vec<u8>, NkfError> 
     // Step 4: Determine output encoding (default: UTF-8)
     let output_encoding = options.output_encoding.unwrap_or(EncodingType::Utf8);
 
-    // Step 5: Decode to UTF-8
-    let utf8 = convert::decode_to_utf8(&input, input_encoding)?;
+    // Step 5: Decode to UTF-8 — Cow avoids allocation for UTF-8 input
+    let utf8: Cow<'_, str> = convert::decode_to_utf8_cow(&input, input_encoding)?;
 
     // Step 5.5: Numeric character reference decoding (operates on UTF-8 text)
-    let utf8 = if options.numchar_input {
-        input_decode::decode_numchar_input(&utf8)
+    let utf8: Cow<'_, str> = if options.numchar_input {
+        match input_decode::decode_numchar_input_cow(&utf8) {
+            Cow::Borrowed(_) => utf8,
+            Cow::Owned(s) => Cow::Owned(s),
+        }
     } else {
         utf8
     };
 
     // Step 6: Apply kana/zen conversions on UTF-8
-    let utf8 = if let Some(zen_mode) = options.zen_mode {
-        kana::apply_zen_conversion(&utf8, zen_mode)
+    let utf8: Cow<'_, str> = if let Some(zen_mode) = options.zen_mode {
+        match kana::apply_zen_conversion_cow(&utf8, zen_mode) {
+            Cow::Borrowed(_) => utf8,
+            Cow::Owned(s) => Cow::Owned(s),
+        }
     } else {
         utf8
     };
 
     // Step 6.5: Apply hiragana/katakana conversion
-    let utf8 = if let Some(mode) = options.hiragana_mode {
-        kana::apply_hiragana_conversion(&utf8, mode)
+    let utf8: Cow<'_, str> = if let Some(mode) = options.hiragana_mode {
+        match kana::apply_hiragana_conversion_cow(&utf8, mode) {
+            Cow::Borrowed(_) => utf8,
+            Cow::Owned(s) => Cow::Owned(s),
+        }
     } else {
         utf8
     };
 
     // Step 7: Convert half-width kana to full-width (unless -x is set)
-    let utf8 = if options.preserve_hw_kana {
+    let utf8: Cow<'_, str> = if options.preserve_hw_kana {
         utf8
     } else {
-        kana::hw_to_fw_katakana(&utf8)
+        match kana::hw_to_fw_katakana_cow(&utf8) {
+            Cow::Borrowed(_) => utf8,
+            Cow::Owned(s) => Cow::Owned(s),
+        }
     };
 
     // Step 8: Convert line endings (if specified)
-    let utf8 = if let Some(le) = options.line_ending {
-        line_ending::convert_line_endings(&utf8, le)
+    let utf8: Cow<'_, str> = if let Some(le) = options.line_ending {
+        match line_ending::convert_line_endings_cow(&utf8, le) {
+            Cow::Borrowed(_) => utf8,
+            Cow::Owned(s) => Cow::Owned(s),
+        }
     } else {
         utf8
     };
 
     // Step 8.5: Fold lines (if specified)
-    let utf8 = if let Some(cols) = options.fold_columns {
-        fold::fold_lines(&utf8, cols)
+    let utf8: Cow<'_, str> = if let Some(cols) = options.fold_columns {
+        Cow::Owned(fold::fold_lines(&utf8, cols))
     } else {
         utf8
     };
 
     // Step 9: MIME encode (if enabled)
-    let utf8 = if let Some(mime_mode) = options.mime_encode {
+    let utf8: Cow<'_, str> = if let Some(mime_mode) = options.mime_encode {
         let charset = output_encoding.display_name();
-        mime::mime_encode(&utf8, mime_mode, charset)
+        Cow::Owned(mime::mime_encode(&utf8, mime_mode, charset))
     } else {
         utf8
     };

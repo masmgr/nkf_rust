@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::encoding_type::{self, EncodingType};
 use crate::error::NkfError;
 
@@ -10,20 +12,26 @@ pub fn convert(input: &[u8], from: EncodingType, to: EncodingType) -> Result<Vec
 
 /// Decode bytes to UTF-8 string.
 pub fn decode_to_utf8(input: &[u8], from: EncodingType) -> Result<String, NkfError> {
+    decode_to_utf8_cow(input, from).map(Cow::into_owned)
+}
+
+/// Decode bytes to UTF-8 string, returning Cow to avoid allocation when input is already valid UTF-8.
+pub fn decode_to_utf8_cow(input: &[u8], from: EncodingType) -> Result<Cow<'_, str>, NkfError> {
     let input = strip_bom(input, from);
 
     match from {
         EncodingType::Ascii | EncodingType::Utf8 | EncodingType::Utf8Bom => {
-            String::from_utf8(input.to_vec())
+            std::str::from_utf8(input)
+                .map(Cow::Borrowed)
                 .map_err(|e| NkfError::Conversion(format!("Invalid UTF-8: {e}")))
         }
-        EncodingType::Utf32Be => decode_utf32(input, true),
-        EncodingType::Utf32Le => decode_utf32(input, false),
+        EncodingType::Utf32Be => decode_utf32(input, true).map(Cow::Owned),
+        EncodingType::Utf32Le => decode_utf32(input, false).map(Cow::Owned),
         _ => {
             let encoding = from.to_encoding_rs();
             // encoding_rs replaces unmappable chars with U+FFFD; we accept that behavior
             let (result, _, _) = encoding.decode(input);
-            Ok(result.into_owned())
+            Ok(result)
         }
     }
 }
@@ -56,7 +64,7 @@ pub fn encode_from_utf8(input: &str, to: EncodingType) -> Result<Vec<u8>, NkfErr
 }
 
 fn encode_utf16(input: &str, big_endian: bool) -> Vec<u8> {
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(input.len() * 2);
     for c in input.encode_utf16() {
         let bytes = if big_endian {
             c.to_be_bytes()
@@ -69,12 +77,12 @@ fn encode_utf16(input: &str, big_endian: bool) -> Vec<u8> {
 }
 
 fn decode_utf32(input: &[u8], big_endian: bool) -> Result<String, NkfError> {
-    if input.len() % 4 != 0 {
+    if !input.len().is_multiple_of(4) {
         return Err(NkfError::Conversion(
             "Invalid UTF-32 input length".to_string(),
         ));
     }
-    let mut result = String::new();
+    let mut result = String::with_capacity(input.len());
     for chunk in input.chunks(4) {
         let cp = if big_endian {
             u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]])
@@ -90,7 +98,7 @@ fn decode_utf32(input: &[u8], big_endian: bool) -> Result<String, NkfError> {
 }
 
 fn encode_utf32(input: &str, big_endian: bool) -> Vec<u8> {
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(input.len() * 2);
     for c in input.chars() {
         let cp = c as u32;
         let bytes = if big_endian {

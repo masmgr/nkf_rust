@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
@@ -134,33 +135,40 @@ fn apply_handakuten(c: char) -> Option<char> {
     }
 }
 
+/// Convert half-width katakana to full-width, returning Cow to avoid allocation when no half-width kana found.
+#[must_use]
+pub fn hw_to_fw_katakana_cow(input: &str) -> Cow<'_, str> {
+    // Quick scan: check for half-width katakana range (U+FF65..U+FF9F) or dakuten/handakuten
+    let has_hw_kana = input.chars().any(|c| ('\u{FF65}'..='\u{FF9F}').contains(&c));
+    if !has_hw_kana {
+        return Cow::Borrowed(input);
+    }
+    Cow::Owned(hw_to_fw_katakana(input))
+}
+
 /// Convert half-width katakana to full-width katakana.
 /// Handles dakuten and handakuten combinations.
 #[must_use]
 pub fn hw_to_fw_katakana(input: &str) -> String {
-    let chars: Vec<char> = input.chars().collect();
     let mut result = String::with_capacity(input.len());
-    let mut i = 0;
+    let mut chars = input.chars().peekable();
 
-    while i < chars.len() {
-        let c = chars[i];
-
+    while let Some(c) = chars.next() {
         // Check if this is a half-width katakana
         if let Some(fw) = hw_kana_to_fw(c) {
             // Look ahead for dakuten/handakuten
-            if i + 1 < chars.len() {
-                let next = chars[i + 1];
+            if let Some(&next) = chars.peek() {
                 if next == DAKUTEN {
                     if let Some(voiced) = apply_dakuten(fw) {
                         result.push(voiced);
-                        i += 2;
+                        chars.next();
                         continue;
                     }
                 } else if next == HANDAKUTEN
                     && let Some(semi_voiced) = apply_handakuten(fw)
                 {
                     result.push(semi_voiced);
-                    i += 2;
+                    chars.next();
                     continue;
                 }
             }
@@ -175,7 +183,6 @@ pub fn hw_to_fw_katakana(input: &str) -> String {
         } else {
             result.push(c);
         }
-        i += 1;
     }
 
     result
@@ -244,6 +251,40 @@ pub enum ZenMode {
     KatakanaToHw,
 }
 
+/// Apply zen conversion, returning Cow to avoid allocation when no conversion is needed.
+#[must_use]
+pub fn apply_zen_conversion_cow(input: &str, mode: ZenMode) -> Cow<'_, str> {
+    match mode {
+        ZenMode::AlphaToAscii | ZenMode::SpaceToOne => {
+            if !input.chars().any(|c| {
+                let cp = c as u32;
+                (0xFF01..=0xFF5E).contains(&cp) || c == '\u{3000}'
+            }) {
+                return Cow::Borrowed(input);
+            }
+            Cow::Owned(fw_to_hw_ascii(input))
+        }
+        ZenMode::SpaceToTwo => {
+            if !input.contains('\u{3000}') {
+                return Cow::Borrowed(input);
+            }
+            Cow::Owned(input.replace('\u{3000}', "  "))
+        }
+        ZenMode::HtmlEntity => {
+            if !input.chars().any(|c| matches!(c, '&' | '<' | '>' | '"')) {
+                return Cow::Borrowed(input);
+            }
+            Cow::Owned(apply_zen_conversion(input, mode))
+        }
+        ZenMode::KatakanaToHw => {
+            if !input.chars().any(|c| FW_TO_HW_MAP.contains_key(&c) || c == '\u{30FB}') {
+                return Cow::Borrowed(input);
+            }
+            Cow::Owned(fw_to_hw_katakana(input))
+        }
+    }
+}
+
 #[must_use]
 pub fn apply_zen_conversion(input: &str, mode: ZenMode) -> String {
     match mode {
@@ -275,6 +316,25 @@ pub enum HiraganaMode {
     HiraganaToKatakana,
     /// -h3: Toggle both directions
     Toggle,
+}
+
+/// Apply hiragana/katakana conversion, returning Cow to avoid allocation when no conversion needed.
+#[must_use]
+pub fn apply_hiragana_conversion_cow(input: &str, mode: HiraganaMode) -> Cow<'_, str> {
+    let needs_conversion = input.chars().any(|c| {
+        let cp = c as u32;
+        match mode {
+            HiraganaMode::KatakanaToHiragana => (0x30A1..=0x30F6).contains(&cp),
+            HiraganaMode::HiraganaToKatakana => (0x3041..=0x3096).contains(&cp),
+            HiraganaMode::Toggle => {
+                (0x30A1..=0x30F6).contains(&cp) || (0x3041..=0x3096).contains(&cp)
+            }
+        }
+    });
+    if !needs_conversion {
+        return Cow::Borrowed(input);
+    }
+    Cow::Owned(apply_hiragana_conversion(input, mode))
 }
 
 /// Apply hiragana/katakana conversion based on mode.

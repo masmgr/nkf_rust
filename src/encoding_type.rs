@@ -69,17 +69,30 @@ impl EncodingType {
     /// Parse encoding name (case-insensitive) to EncodingType.
     #[must_use]
     pub fn from_name(name: &str) -> Option<Self> {
-        match name.to_ascii_uppercase().replace('-', "").replace('_', "").as_str() {
-            "ASCII" => Some(EncodingType::Ascii),
-            "UTF8" => Some(EncodingType::Utf8),
-            "UTF8BOM" => Some(EncodingType::Utf8Bom),
-            "UTF16" | "UTF16BE" => Some(EncodingType::Utf16Be),
-            "UTF16LE" => Some(EncodingType::Utf16Le),
-            "UTF32" | "UTF32BE" => Some(EncodingType::Utf32Be),
-            "UTF32LE" => Some(EncodingType::Utf32Le),
-            "SHIFTJIS" | "SJIS" | "CP932" | "WINDOWS31J" => Some(EncodingType::ShiftJis),
-            "EUCJP" => Some(EncodingType::EucJp),
-            "ISO2022JP" | "JIS" => Some(EncodingType::Iso2022Jp),
+        // Normalize on the stack: uppercase, skip '-' and '_'
+        let mut buf = [0u8; 16];
+        let mut len = 0;
+        for &b in name.as_bytes() {
+            if b == b'-' || b == b'_' {
+                continue;
+            }
+            if len >= buf.len() {
+                return None;
+            }
+            buf[len] = b.to_ascii_uppercase();
+            len += 1;
+        }
+        match &buf[..len] {
+            b"ASCII" => Some(EncodingType::Ascii),
+            b"UTF8" => Some(EncodingType::Utf8),
+            b"UTF8BOM" => Some(EncodingType::Utf8Bom),
+            b"UTF16" | b"UTF16BE" => Some(EncodingType::Utf16Be),
+            b"UTF16LE" => Some(EncodingType::Utf16Le),
+            b"UTF32" | b"UTF32BE" => Some(EncodingType::Utf32Be),
+            b"UTF32LE" => Some(EncodingType::Utf32Le),
+            b"SHIFTJIS" | b"SJIS" | b"CP932" | b"WINDOWS31J" => Some(EncodingType::ShiftJis),
+            b"EUCJP" => Some(EncodingType::EucJp),
+            b"ISO2022JP" | b"JIS" => Some(EncodingType::Iso2022Jp),
             _ => None,
         }
     }

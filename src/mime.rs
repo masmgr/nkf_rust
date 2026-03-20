@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Write as _;
 
 use base64::{Engine as _, engine::general_purpose};
@@ -15,6 +16,15 @@ pub enum MimeDecodeMode {
 pub enum MimeEncodeMode {
     Base64,
     QuotedPrintable,
+}
+
+/// Decode MIME encoded-words, returning Cow to avoid allocation when no decoding needed.
+#[must_use]
+pub fn mime_decode_cow(input: &[u8], mode: MimeDecodeMode) -> Cow<'_, [u8]> {
+    if mode == MimeDecodeMode::None {
+        return Cow::Borrowed(input);
+    }
+    Cow::Owned(mime_decode(input, mode))
 }
 
 /// Decode MIME encoded-words in input bytes (RFC 2047).
@@ -59,7 +69,7 @@ pub fn mime_encode(input: &str, mode: MimeEncodeMode, charset: &str) -> String {
 }
 
 fn decode_rfc2047(input: &str) -> Vec<u8> {
-    let mut result = String::new();
+    let mut result = String::with_capacity(input.len());
     let mut rest = input;
     let mut found = false;
 
@@ -113,11 +123,8 @@ fn decode_rfc2047(input: &str) -> Vec<u8> {
 }
 
 fn decode_base64(input: &[u8]) -> Vec<u8> {
-    let filtered: Vec<u8> = input
-        .iter()
-        .filter(|&&b| b != b'\n' && b != b'\r' && b != b' ')
-        .copied()
-        .collect();
+    let mut filtered = Vec::with_capacity(input.len());
+    filtered.extend(input.iter().filter(|&&b| b != b'\n' && b != b'\r' && b != b' ').copied());
 
     general_purpose::STANDARD
         .decode(&filtered)
@@ -125,7 +132,7 @@ fn decode_base64(input: &[u8]) -> Vec<u8> {
 }
 
 fn decode_quoted_printable(input: &[u8]) -> Vec<u8> {
-    let mut result = Vec::new();
+    let mut result = Vec::with_capacity(input.len());
     let mut i = 0;
 
     while i < input.len() {
@@ -163,7 +170,7 @@ fn decode_quoted_printable(input: &[u8]) -> Vec<u8> {
 }
 
 fn encode_quoted_printable(input: &[u8]) -> String {
-    let mut result = String::new();
+    let mut result = String::with_capacity(input.len());
 
     for &byte in input {
         if byte == b' ' {

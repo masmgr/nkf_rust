@@ -11,12 +11,12 @@ pub fn fold_lines(input: &str, columns: usize) -> String {
         input
     };
 
-    let parts: Vec<&str> = trimmed.split('\n').collect();
-    for (idx, line) in parts.iter().enumerate() {
+    let mut lines = trimmed.split('\n').peekable();
+    while let Some(line) = lines.next() {
         if !line.is_empty() {
             fold_single_line(line, columns, &mut result);
         }
-        if idx < parts.len() - 1 {
+        if lines.peek().is_some() {
             result.push('\n');
         }
     }
